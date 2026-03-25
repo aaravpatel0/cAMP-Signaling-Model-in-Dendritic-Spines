@@ -1,0 +1,14 @@
+# Output results
+results/
+results_fast/
+results_full/
+mesh_output/
+figures/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Stray files
+tatus
