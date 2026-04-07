@@ -1,4 +1,4 @@
-# 🧠 cAMP Signaling Model in Dendritic Spines
+# cAMP Signaling Model in Dendritic Spines
 
 A comprehensive 3D reaction-diffusion model of cyclic AMP signaling dynamics in dendritic spines, built on the [SMART](https://github.com/RangamaniLabUCSD/SMART) (Spatial Modeling Algorithms for Reactions and Transport) framework.
 
