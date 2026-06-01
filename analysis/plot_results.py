@@ -121,6 +121,31 @@ def plot_downstream(summary: pd.DataFrame, figures_dir: Path) -> None:
     plt.close(fig)
 
 
+def plot_spatial_timecourse(summary: pd.DataFrame, column: str, ylabel: str, filename: str, figures_dir: Path) -> None:
+    wanted = [
+        "A_continuous_baseline",
+        "B_single_pulse_width_0.25s",
+        "C_pulse_train_period_0.5s",
+    ]
+    fig, ax = plt.subplots(figsize=(5.2, 3.2))
+    for run_id in wanted:
+        match = summary[summary["run_id"] == run_id]
+        if match.empty:
+            continue
+        ts = read_timecourse(match.iloc[0])
+        if column not in ts.columns:
+            continue
+        ax.plot(ts["t"], ts[column], linewidth=2, label=run_id.replace("_", " "))
+    style_axes(ax, "Time (s)", ylabel)
+    if ax.lines:
+        ax.legend(frameon=False)
+    else:
+        mark_no_data(ax)
+    fig.tight_layout()
+    fig.savefig(figures_dir / filename)
+    plt.close(fig)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Plot ICBES cAMP experiment results.")
     parser.add_argument("--summary_csv", default=str(DEFAULT_SUMMARY))
@@ -145,6 +170,8 @@ def main() -> int:
     plot_response(summary, "E_V_PDE_sweep", "V_PDE", "cAMP_fold_change",
                   "V_PDE (uM/s)", "pde_sweep.png", figures_dir)
     plot_downstream(summary, figures_dir)
+    plot_spatial_timecourse(summary, "gradient_index", "Gradient index", "spatial_gradient_index.png", figures_dir)
+    plot_spatial_timecourse(summary, "head_neck_ratio", "Head/neck cAMP ratio", "head_neck_ratio.png", figures_dir)
 
     print(f"Wrote figures to {figures_dir}")
     return 0

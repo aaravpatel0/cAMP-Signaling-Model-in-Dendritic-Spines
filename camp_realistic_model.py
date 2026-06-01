@@ -10,7 +10,7 @@ Biology implemented
     β-adrenergic receptor (bAR) activation, GRK-mediated desensitization,
     receptor recycling; bAR_active level gates Gs activation
     Gαs (Gs_act) → adenylyl cyclase (AC) activation
-    AC Ca²⁺/calmodulin potentiation (AC1/AC8-type Hill term)
+    AC potentiation gated by Ca²⁺/calmodulin complex (CaCaM; AC1/AC8-type term)
 
   PDE isoforms
     PDE4 : cytosolic, Michaelis-Menten, PKA-feedback (inhibition)
@@ -25,7 +25,7 @@ Biology implemented
     GluA1 Ser845 phosphorylation by PKA; dephosphorylated by PP1 (I1P-inhibited)
 
   CaMKII cascade
-    Ca²⁺/calmodulin (CaM + 4Ca ↔ CaCaM, 4th-order mass action)
+    Ca²⁺/calmodulin (CaM ↔ CaCaM, Ca-gated Hill activation)
     CaMKII_i ↔ CaMKII_a (CaCaM-activated) ↔ CaMKII_p (autophosphorylated Thr286)
     PP1 dephosphorylation of CaMKII_p (I1P-inhibited)
     GluA1 Ser831 phosphorylation by CaMKII_a/p
@@ -52,7 +52,9 @@ Output
               AMP.xdmf, pSer845.xdmf, pSer831.xdmf
   results_full/timeseries.csv
     columns: t, avg_cAMP, avg_Ca, avg_Ca_ER, avg_ATP, PKA_frac,
-             avg_pSer845, avg_I1P, avg_pSer831, CaMKII_p_frac
+             avg_pSer845, avg_I1P, avg_pSer831, CaMKII_p_frac,
+             min_cAMP, max_cAMP, gradient_index, stimulus,
+             neck_avg_cAMP, head_avg_cAMP, head_neck_ratio
 
 Parameter sources
 -----------------
@@ -260,7 +262,8 @@ Epac_act     = Species("Epac_act",     0.0,    uM,  15.0, D_unit, "Cyto")
 CaCaB        = Species("CaCaB",        10.0,   uM,  10.0, D_unit, "Cyto")
 
 # ── Calmodulin (explicit, for CaMKII signaling) ───────────────────────────────
-# CaM  = free calmodulin; CaCaM = 4-Ca²⁺-bound calmodulin (lumped step)
+# CaM  = free calmodulin; CaCaM = Ca²⁺/calmodulin complex. Ca binding is modeled
+# by a Hill-form activation reaction rather than explicit 4th-order mass action.
 # IC CaM=5 μM ≈ total calmodulin; CaCaM≈0 at rest (Ca=0.1 μM << K_D)
 CaM          = Species("CaM",          5.0,    uM,  10.0, D_unit, "Cyto")
 CaCaM        = Species("CaCaM",        0.0,    uM,   8.0, D_unit, "Cyto")
@@ -318,7 +321,7 @@ Gs_total_p   = Parameter("Gs_total_p",   1.0,    uM)        # total Gs pool
 V_AC_max     = Parameter("V_AC_max",     2.0,    uM*um/sec) # max surface flux
 K_AC_ATP     = Parameter("K_AC_ATP",     500.0,  uM)        # Km ATP (Salomon 2000)
 K_AC_Gs      = Parameter("K_AC_Gs",      0.1,    uM)        # EC₅₀ Gαs (Neves 2008)
-K_AC_Ca      = Parameter("K_AC_Ca",      0.4,    uM)        # CaM Ca²⁺ half-max
+K_AC_CaM     = Parameter("K_AC_CaM",     0.5,    uM)        # CaCaM half-max for AC1/AC8 potentiation
 AC_Ca_fold   = Parameter("AC_Ca_fold",   5.0,    uM/uM)     # dimensionless fold (AC1/8)
 
 # ── AC surface-to-volume coupling ────────────────────────────────────────────
@@ -360,9 +363,10 @@ k_CaB_on     = Parameter("k_CaB_on",     100.0,  1/(uM*sec))
 k_CaB_off    = Parameter("k_CaB_off",    10.0,   1/sec)
 CaB_total_p  = Parameter("CaB_total_p",  20.0,   uM)
 
-# ── Calmodulin (CaM) — 4-Ca lumped binding ───────────────────────────────────
-# k_CaM_on has nominal unit 1/(uM*sec); rate uses Ca^4*CaM (4th-order in Ca)
-k_CaM_on     = Parameter("k_CaM_on",     100.0,  1/(uM*sec))
+# ── Calmodulin (CaM) — Ca-gated Hill activation ──────────────────────────────
+# k_CaM_on is first-order in CaM; Ca enters through a dimensionless Hill factor.
+k_CaM_on     = Parameter("k_CaM_on",     20.0,   1/sec)
+K_CaM        = Parameter("K_CaM",        0.4,    uM)
 k_CaM_off    = Parameter("k_CaM_off",    1.0,    1/sec)
 
 # ── CaMKII cascade (Lisman 2002) ─────────────────────────────────────────────
@@ -417,7 +421,7 @@ cAMP_dend_p  = Parameter("cAMP_dend_p",  CAMP_DEND_VAL, uM)
 pc = ParameterContainer()
 pc.add([
     k_Gs_inact, Gs_total_p,
-    V_AC_max, K_AC_ATP, K_AC_Gs, K_AC_Ca, AC_Ca_fold,
+    V_AC_max, K_AC_ATP, K_AC_Gs, K_AC_CaM, AC_Ca_fold,
     SA_V,
     V_PDE4, K_PDE4, alpha_inh,
     V_PDE2, K_PDE2, K_PDE2_act,
@@ -426,7 +430,7 @@ pc.add([
     k_Epac_on, Epac_total, K_Epac, k_Epac_off,
     k_Ca_in, k_Ca_out,
     k_CaB_on, k_CaB_off, CaB_total_p,
-    k_CaM_on, k_CaM_off,
+    k_CaM_on, K_CaM, k_CaM_off,
     k_CaMKII_act, k_CaMKII_inact, k_auto, k_dephos_CaMKII,
     pSer845_total_p, k_phos, k_dephos,
     pSer831_total_p, k_pSer831_phos, k_pSer831_dephos,
@@ -458,22 +462,24 @@ r_Gs_inact = Reaction(
 # 2. AC production: ATP → cAMP (cytosolic, SA_V-scaled)
 #    V_AC_max [μM·μm/s] × SA_V [1/μm] = volumetric rate [μM/s].
 #    Gs_act is a Cyto proxy so all species are in the same domain.
+#    AC1/AC8 Ca dependence is gated by CaCaM rather than raw Ca because CaM-bound
+#    Ca is the activating molecular complex for these isoforms.
 r_AC = Reaction(
     "AC_production",
     ["ATP"], ["cAMP"],
     param_map={
         "V_AC_max": "V_AC_max", "K_AC_ATP": "K_AC_ATP",
         "K_AC_Gs":  "K_AC_Gs",
-        "K_AC_Ca":  "K_AC_Ca",  "AC_Ca_fold": "AC_Ca_fold",
+        "K_AC_CaM": "K_AC_CaM", "AC_Ca_fold": "AC_Ca_fold",
         "SA_V":     "SA_V",
     },
     eqn_f_str=(
         "V_AC_max * SA_V"
         " * ATP / (K_AC_ATP + ATP)"
         " * Gs_act / (K_AC_Gs + Gs_act)"
-        " * (1.0 + AC_Ca_fold * Ca / (K_AC_Ca + Ca))"
+        " * (1.0 + AC_Ca_fold * CaCaM / (K_AC_CaM + CaCaM))"
     ),
-    species_map={"ATP": "ATP", "Gs_act": "Gs_act", "Ca": "Ca"},
+    species_map={"ATP": "ATP", "Gs_act": "Gs_act", "CaCaM": "CaCaM"},
 )
 
 # 3. PDE2: membrane-anchored, cAMP-allosteric activation (GAF-B, Hill n=2)
@@ -614,20 +620,25 @@ r_CaB_unbind = Reaction(
     species_map={"CaCaB": "CaCaB"},
 )
 
-# 16. Calmodulin Ca²⁺ binding: CaM + 4 Ca → CaCaM  (lumped 4th-order mass action)
-#     lhs includes 4 Ca and 1 CaM for proper stoichiometric mass balance.
+# 16. Calmodulin activation: CaM → CaCaM with Ca-gated Hill kinetics.
+#     This is a robust reduced representation of cooperative Ca²⁺ loading:
+#     rate = k_CaM_on * CaM * Ca^4 / (K_CaM^4 + Ca^4). Ca is a catalyst/gate,
+#     not a consumed species, avoiding unstable 4th-order mass-action depletion.
 r_CaM_bind = Reaction(
     "CaM_binding",
-    ["CaM", "Ca", "Ca", "Ca", "Ca"], ["CaCaM"],
-    param_map={"k_CaM_on": "k_CaM_on"},
-    eqn_f_str="k_CaM_on * Ca * Ca * Ca * Ca * CaM",
+    ["CaM"], ["CaCaM"],
+    param_map={"k_CaM_on": "k_CaM_on", "K_CaM": "K_CaM"},
+    eqn_f_str=(
+        "k_CaM_on * CaM * Ca * Ca * Ca * Ca"
+        " / (K_CaM * K_CaM * K_CaM * K_CaM + Ca * Ca * Ca * Ca)"
+    ),
     species_map={"Ca": "Ca", "CaM": "CaM"},
 )
 
-# 17. Calmodulin Ca²⁺ unbinding: CaCaM → CaM + 4 Ca
+# 17. Calmodulin deactivation: CaCaM → CaM
 r_CaM_unbind = Reaction(
     "CaM_unbinding",
-    ["CaCaM"], ["CaM", "Ca", "Ca", "Ca", "Ca"],
+    ["CaCaM"], ["CaM"],
     param_map={"k_CaM_off": "k_CaM_off"},
     eqn_f_str="k_CaM_off * CaCaM",
     species_map={"CaCaM": "CaCaM"},
@@ -869,7 +880,7 @@ model_cur.initialize()
 # OUTPUT FILES
 # ═══════════════════════════════════════════════════════════════════════════════
 result_folder = pathlib.Path(CLI_ARGS.output_dir)
-result_folder.mkdir(exist_ok=True)
+result_folder.mkdir(parents=True, exist_ok=True)
 
 xdmf_out_species = ["cAMP", "Ca", "Ca_ER", "ATP", "AMP", "pSer845", "pSer831"]
 xdmf_files = {}
@@ -887,9 +898,71 @@ vol = d.assemble_mixed(1.0 * dx)
 def avg_cyto(sname):
     return float(d.assemble_mixed(model_cur.sc[sname].u["u"] * dx) / vol)
 
+
+def _camp_dof_coordinates_and_masks():
+    """
+    Build nodal/DOF masks for approximate neck and head cAMP averages.
+
+    These are intentionally DOF-based rather than subdomain-integral based:
+    SMART owns the assembled species Function objects, and the reduced
+    head/neck markers are geometric approximations from z coordinates. Sampling
+    the cAMP degrees of freedom in the lowest 15% and highest 12% of the mesh
+    z-range gives a robust, reproducible spatial-compartment readout without
+    depending on extra mesh-function integration machinery.
+    """
+    try:
+        u = model_cur.sc["cAMP"].u["u"]
+        coords_local = u.function_space().tabulate_dof_coordinates()
+        coords_local = np.asarray(coords_local).reshape((-1, spine_mesh.geometry().dim()))
+        n_values = len(u.vector().get_local())
+        if len(coords_local) != n_values:
+            raise ValueError("DOF coordinate count does not match local vector length")
+        z_dof = coords_local[:, 2]
+        neck_mask_local = z_dof <= neck_z
+        head_mask_local = z_dof >= psd_z
+        if not neck_mask_local.any() or not head_mask_local.any():
+            raise ValueError("empty neck or head DOF mask")
+        return neck_mask_local, head_mask_local
+    except Exception as exc:
+        print(f"  WARNING: head/neck DOF masks unavailable ({exc}); spatial averages set to NaN.")
+        return None, None
+
+
+neck_dof_mask, head_dof_mask = _camp_dof_coordinates_and_masks()
+
+
+def camp_spatial_metrics(t_now):
+    vals = model_cur.sc["cAMP"].u["u"].vector().get_local()
+    min_camp = float(np.min(vals))
+    max_camp = float(np.max(vals))
+    avg_camp = avg_cyto("cAMP")
+    gradient_index = (max_camp - min_camp) / avg_camp if avg_camp > 1e-12 else np.nan
+
+    if neck_dof_mask is not None and head_dof_mask is not None and len(vals) == len(neck_dof_mask):
+        neck_avg = float(np.mean(vals[neck_dof_mask]))
+        head_avg = float(np.mean(vals[head_dof_mask]))
+        head_neck_ratio = head_avg / neck_avg if neck_avg > 1e-12 else np.nan
+    else:
+        neck_avg = np.nan
+        head_avg = np.nan
+        head_neck_ratio = np.nan
+
+    return {
+        "avg_cAMP": avg_camp,
+        "min_cAMP": min_camp,
+        "max_cAMP": max_camp,
+        "gradient_index": float(gradient_index),
+        "stimulus": stim(t_now),
+        "neck_avg_cAMP": neck_avg,
+        "head_avg_cAMP": head_avg,
+        "head_neck_ratio": float(head_neck_ratio),
+    }
+
+
 # Time-series accumulators
+camp_metrics0       = camp_spatial_metrics(0.0)
 tvec              = [0.0]
-avg_cAMP_vec      = [avg_cyto("cAMP")]
+avg_cAMP_vec      = [camp_metrics0["avg_cAMP"]]
 avg_Ca_vec        = [avg_cyto("Ca")]
 avg_Ca_ER_vec     = [avg_cyto("Ca_ER")]
 avg_ATP_vec       = [avg_cyto("ATP")]
@@ -898,6 +971,13 @@ avg_pSer845_vec   = [avg_cyto("pSer845")]
 avg_I1P_vec       = [avg_cyto("I1P")]
 avg_pSer831_vec   = [avg_cyto("pSer831")]
 CaMKII_p_frac_vec = [0.0]
+min_cAMP_vec      = [camp_metrics0["min_cAMP"]]
+max_cAMP_vec      = [camp_metrics0["max_cAMP"]]
+gradient_index_vec = [camp_metrics0["gradient_index"]]
+stimulus_vec      = [camp_metrics0["stimulus"]]
+neck_avg_cAMP_vec = [camp_metrics0["neck_avg_cAMP"]]
+head_avg_cAMP_vec = [camp_metrics0["head_avg_cAMP"]]
+head_neck_ratio_vec = [camp_metrics0["head_neck_ratio"]]
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # OPERATOR-SPLIT FUNCTIONS
@@ -980,8 +1060,9 @@ while True:
             xf.write(model_cur.sc[sname].u["u"], model_cur.t)
 
     # ── Accumulate time series ─────────────────────────────────────────────
+    camp_metrics = camp_spatial_metrics(model_cur.t)
     tvec.append(model_cur.t)
-    avg_cAMP_vec.append(avg_cyto("cAMP"))
+    avg_cAMP_vec.append(camp_metrics["avg_cAMP"])
     avg_Ca_vec.append(avg_cyto("Ca"))
     avg_Ca_ER_vec.append(avg_cyto("Ca_ER"))
     avg_ATP_vec.append(avg_cyto("ATP"))
@@ -994,6 +1075,13 @@ while True:
     avg_pSer831_vec.append(avg_cyto("pSer831"))
     ckii_p_frac = avg_cyto("CaMKII_p") / 2.0   # normalized to total 2 μM pool
     CaMKII_p_frac_vec.append(ckii_p_frac)
+    min_cAMP_vec.append(camp_metrics["min_cAMP"])
+    max_cAMP_vec.append(camp_metrics["max_cAMP"])
+    gradient_index_vec.append(camp_metrics["gradient_index"])
+    stimulus_vec.append(camp_metrics["stimulus"])
+    neck_avg_cAMP_vec.append(camp_metrics["neck_avg_cAMP"])
+    head_avg_cAMP_vec.append(camp_metrics["head_avg_cAMP"])
+    head_neck_ratio_vec.append(camp_metrics["head_neck_ratio"])
 
     # ── Progress report every 10 steps ─────────────────────────────────────
     if step % 10 == 0:
@@ -1022,10 +1110,14 @@ with open(csv_path, "w", newline="") as f:
     writer.writerow([
         "t", "avg_cAMP", "avg_Ca", "avg_Ca_ER", "avg_ATP",
         "PKA_frac", "avg_pSer845", "avg_I1P", "avg_pSer831", "CaMKII_p_frac",
+        "min_cAMP", "max_cAMP", "gradient_index", "stimulus",
+        "neck_avg_cAMP", "head_avg_cAMP", "head_neck_ratio",
     ])
     for row in zip(tvec, avg_cAMP_vec, avg_Ca_vec, avg_Ca_ER_vec, avg_ATP_vec,
                    PKA_frac_vec, avg_pSer845_vec, avg_I1P_vec,
-                   avg_pSer831_vec, CaMKII_p_frac_vec):
+                   avg_pSer831_vec, CaMKII_p_frac_vec,
+                   min_cAMP_vec, max_cAMP_vec, gradient_index_vec, stimulus_vec,
+                   neck_avg_cAMP_vec, head_avg_cAMP_vec, head_neck_ratio_vec):
         writer.writerow([f"{v:.6f}" for v in row])
 print(f"\nTime series saved: {csv_path}")
 

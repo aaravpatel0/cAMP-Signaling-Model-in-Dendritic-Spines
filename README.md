@@ -24,7 +24,7 @@ Ca²⁺ → CaM → CaCaM → CaMKII_i → CaMKII_a → CaMKII_p → pSer831 (Gl
 - GRK-mediated desensitization → β-arrestin recruitment → `bAR_desens`
 - Receptor recycling from endosome back to surface
 - Gαs activation gated by receptor occupancy (operator-split)
-- Adenylyl cyclase (AC1/AC8-type): Gs + Ca²⁺/CaM potentiation, SA_V-scaled
+- Adenylyl cyclase (AC1/AC8-type): Gs + CaCaM potentiation, SA_V-scaled
 
 ### PDE Isoforms
 | Isoform | Location | Mechanism |
@@ -41,7 +41,7 @@ Ca²⁺ → CaM → CaCaM → CaMKII_i → CaMKII_a → CaMKII_p → pSer831 (Gl
 - GluA1 **Ser845** phosphorylation by PKA; PP1 dephosphorylation (I1P-inhibited)
 
 ### CaMKII Cascade
-- Explicit calmodulin species: CaM + 4 Ca²⁺ ↔ CaCaM (4th-order lumped mass action)
+- Explicit calmodulin species: CaM ↔ CaCaM with Ca-gated Hill activation
 - CaMKII_i → CaMKII_a (CaCaM-activated) → CaMKII_p (Thr286 autophosphorylated)
 - Bimolecular autophosphorylation: requires two adjacent activated subunits
 - PP1 dephosphorylation of CaMKII_p (I1P-inhibited)
@@ -83,7 +83,7 @@ Ca²⁺ → CaM → CaCaM → CaMKII_i → CaMKII_a → CaMKII_p → pSer831 (Gl
 | Epac_act | Cyto | 0.0 | 15 | Active Rap1 GEF |
 | CaCaB | Cyto | 10 | 10 | Ca-buffer complex |
 | CaM | Cyto | 5.0 | 10 | Free calmodulin |
-| CaCaM | Cyto | 0.0 | 8 | Ca⁴-calmodulin complex |
+| CaCaM | Cyto | 0.0 | 8 | Calcium-loaded calmodulin complex |
 | CaMKII_i | Cyto | 2.0 | 0.5 | Inactive CaMKII (dodecamer) |
 | CaMKII_a | Cyto | 0.0 | 0.5 | CaCaM-activated CaMKII |
 | CaMKII_p | Cyto | 0.0 | 0.5 | Thr286-autophosphorylated CaMKII |
@@ -166,7 +166,9 @@ All outputs are written to `results_full/`:
 `timeseries.csv` columns:
 
 ```
-t, avg_cAMP, avg_Ca, avg_Ca_ER, avg_ATP, PKA_frac, avg_pSer845, avg_I1P, avg_pSer831, CaMKII_p_frac
+t, avg_cAMP, avg_Ca, avg_Ca_ER, avg_ATP, PKA_frac, avg_pSer845,
+avg_I1P, avg_pSer831, CaMKII_p_frac, min_cAMP, max_cAMP,
+gradient_index, stimulus, neck_avg_cAMP, head_avg_cAMP, head_neck_ratio
 ```
 
 ### Visualization
@@ -304,6 +306,8 @@ Figures are written to `figures/`:
 - `diffusion_sweep.png`
 - `pde_sweep.png`
 - `downstream_phosphorylation.png`
+- `spatial_gradient_index.png`
+- `head_neck_ratio.png`
 
 Video rendering:
 
@@ -321,6 +325,40 @@ python visualization/make_video_pyvista.py results/experiments/C_pulse_train_per
 ```
 
 The renderer uses a fixed camera, fixed scalar range, the inferno colormap, and a scalar bar labeled `cAMP concentration (uM)`.
+
+### Quantitative Metrics and Model Scope
+
+Temporal metrics summarize the volume-averaged biochemical response:
+
+- `peak_avg_cAMP`: maximum average cytosolic cAMP during the run.
+- `final_avg_cAMP`: average cytosolic cAMP at the final time point.
+- `time_to_peak`: time at which average cAMP reaches its maximum.
+- `cAMP_fold_change`: peak average cAMP divided by initial average cAMP.
+- `peak_PKA_frac`: maximum active PKA fraction.
+- `peak_avg_pSer845` and `peak_avg_pSer831`: peak GluA1 phosphorylation readouts downstream of PKA and CaMKII.
+- `final_CaMKII_p_frac`: final fraction of the CaMKII pool in the autophosphorylated state.
+- `avg_cAMP_auc`: area under the average cAMP curve.
+
+Spatial metrics are written by the full 3D SMART/FEniCS model when `timeseries.csv` is generated:
+
+- `min_cAMP` and `max_cAMP`: nodal extrema of the cAMP field.
+- `gradient_index`: `(max_cAMP - min_cAMP) / avg_cAMP`, a dimensionless measure of spatial compartmentalization.
+- `stimulus`: value of the square-wave stimulus protocol at the saved time point.
+- `neck_avg_cAMP`: approximate cAMP average over degrees of freedom in the lowest 15% of the mesh z-range.
+- `head_avg_cAMP`: approximate cAMP average over degrees of freedom in the highest 12% of the mesh z-range.
+- `head_neck_ratio`: `head_avg_cAMP / neck_avg_cAMP`, a compact readout of head-to-neck polarization.
+
+The head and neck averages are DOF-based approximations rather than exact subdomain integrals. This keeps the metric robust across SMART/FEniCS function-space layouts while still using the same geometric neck/head definitions used to auto-mark the model boundary regions.
+
+`run_conference_experiments.py` is a reduced 1D screening model. It is useful for rapid parameter exploration, sanity-checking expected trends, and drafting figure layouts without waiting for full 3D solves. The conference-quality quantitative outputs should come from `camp_realistic_model.py` through `experiments/run_experiments.py`, because that path uses the full dendritic spine mesh, SMART reactions, and 3D diffusion.
+
+AC1/AC8 potentiation is gated by `CaCaM` rather than raw `Ca` in the full model. This is more biophysically appropriate because calcium-loaded calmodulin is the activating complex for CaM-sensitive adenylyl cyclase isoforms. The model therefore uses a Hill-form CaM activation step, `CaM -> CaCaM`, and lets `CaCaM` control AC potentiation. This avoids an unstable fourth-order mass-action calcium sink while preserving cooperative calcium dependence.
+
+Validation:
+
+```bash
+python scripts/validate_outputs.py results/experiments/A_continuous_baseline/timeseries.csv
+```
 
 ---
 

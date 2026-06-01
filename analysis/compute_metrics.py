@@ -42,7 +42,7 @@ def compute_one(timeseries_path: Path, metadata: dict[str, object]) -> dict[str,
     peak = float(df["avg_cAMP"].iloc[peak_idx])
     auc = float(np.trapezoid(df["avg_cAMP"].to_numpy(), df["t"].to_numpy()))
 
-    return {
+    metrics = {
         **metadata,
         "timeseries_csv": str(timeseries_path),
         "peak_avg_cAMP": peak,
@@ -55,6 +55,20 @@ def compute_one(timeseries_path: Path, metadata: dict[str, object]) -> dict[str,
         "final_CaMKII_p_frac": float(df["CaMKII_p_frac"].iloc[-1]),
         "avg_cAMP_auc": auc,
     }
+    optional_columns = {
+        "gradient_index": ("peak_gradient_index", "final_gradient_index"),
+        "head_neck_ratio": ("peak_head_neck_ratio", "final_head_neck_ratio"),
+        "max_cAMP": ("peak_max_cAMP", "final_max_cAMP"),
+    }
+    for column, (peak_name, final_name) in optional_columns.items():
+        if column in df.columns:
+            values = pd.to_numeric(df[column], errors="coerce").replace([np.inf, -np.inf], np.nan)
+            metrics[peak_name] = float(values.max(skipna=True))
+            metrics[final_name] = float(values.iloc[-1]) if not pd.isna(values.iloc[-1]) else np.nan
+        else:
+            metrics[peak_name] = np.nan
+            metrics[final_name] = np.nan
+    return metrics
 
 
 def collect_metrics(experiments_dir: Path) -> pd.DataFrame:
