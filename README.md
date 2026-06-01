@@ -175,6 +175,77 @@ XDMF output files can be opened directly in [ParaView](https://www.paraview.org/
 
 ---
 
+## Conference Proceeding Experiment Pipeline
+
+The repository now includes a reproducible experiment driver for generating a complete figure and metrics set for an 8-page ICBES-style conference proceeding:
+
+```bash
+# Fast prototype sweep for local testing and drafting
+python run_conference_experiments.py
+
+# Publication-oriented sweep with longer simulations and smaller dt
+python run_conference_experiments.py --publication
+
+# Optional overrides shared with the SMART/FEniCS model CLI
+python run_conference_experiments.py --t_end 4 --dt 0.02 --stim_amp 1.5 --output_dir results
+```
+
+The pipeline automatically runs:
+
+- **A. continuous baseline**
+- **B. single pulse widths:** 0.1, 0.25, 0.5 s
+- **C. pulse train periods:** 0.25, 0.5, 1.0 s
+- **D. diffusion constants:** 5, 10, 20, 30, 50 um^2/s
+- **E. PDE strengths:** 1, 2, 5, 10 uM/s
+
+Outputs:
+
+| File | Contents |
+|------|----------|
+| `results/summary_metrics.csv` | One row per experiment with peak/final cAMP, time to peak, and gradient metrics |
+| `results/timecourses/*.csv` | Per-run time series for mean, max, min, gradient index, and stimulus |
+| `figures/continuous_vs_pulsed_timecourse.png` | Baseline, single-pulse, and pulse-train cAMP time courses |
+| `figures/pulse_period_response.png` | Peak cAMP response versus pulse-train period |
+| `figures/diffusion_sweep_gradient_index.png` | Peak spatial gradient index versus cAMP diffusion |
+| `figures/pde_sweep_gradient_index.png` | Peak spatial gradient index versus PDE strength |
+| `figures/continuous_stimulation.gif` | Fixed-color-limit inferno animation for continuous stimulation |
+| `figures/pulse_train_stimulation.gif` | Fixed-color-limit inferno animation for pulse-train stimulation |
+
+Metric definitions:
+
+- `mean_cAMP`: spatial mean cAMP concentration at each sampled time point.
+- `max_cAMP`: maximum cAMP concentration across the reduced spine axis at each sampled time point.
+- `min_cAMP`: minimum cAMP concentration across the reduced spine axis at each sampled time point.
+- `gradient_index`: `(max_cAMP - min_cAMP) / mean_cAMP`; larger values indicate stronger spatial compartmentalization.
+- `time_to_peak`: time at which mean cAMP reaches its maximum.
+- `peak_cAMP`: maximum mean cAMP over the run.
+- `final_cAMP`: mean cAMP at the final time point.
+- `peak_gradient_index`: maximum gradient index over the run.
+- `final_gradient_index`: gradient index at the final time point.
+
+The full SMART/FEniCS model also accepts the same stimulation controls for higher-fidelity reruns:
+
+```bash
+python camp_realistic_model.py \
+  --mode pulse_train \
+  --t_end 10 \
+  --dt 0.02 \
+  --stim_amp 1.0 \
+  --stim_start 1.0 \
+  --pulse_width 0.25 \
+  --pulse_period 0.5 \
+  --pulse_count 8 \
+  --D_cAMP 30 \
+  --V_PDE 2 \
+  --save_every 5 \
+  --output_dir results_full \
+  --publication
+```
+
+`run_conference_experiments.py` is the rapid prototype path used to generate the full sweep quickly. `camp_realistic_model.py` remains the detailed SMART/FEniCS implementation and should be used when FEniCS and SMART are installed.
+
+---
+
 ## Parameter Sources
 
 Parameters were drawn from or calibrated against the following literature:

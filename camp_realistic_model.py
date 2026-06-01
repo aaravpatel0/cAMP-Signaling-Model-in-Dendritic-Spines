@@ -65,6 +65,7 @@ Parameter sources
 """
 
 import csv
+import argparse
 import logging
 import pathlib
 import numpy as np
@@ -79,13 +80,36 @@ from smart.model_assembly import (
 from smart.units import unit
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SIMULATION SETTINGS
+# CLI / SIMULATION SETTINGS
 # ═══════════════════════════════════════════════════════════════════════════════
-FINAL_T     = 10.0   # s — total simulation time
-INITIAL_DT  = 0.02   # s — timestep (fixed; SNES)
-STIM_ON     = 1.0    # s — β-AR stimulus onset
-STIM_OFF    = 4.0    # s — β-AR stimulus offset
-STIM_TAU    = 0.3    # s — tanh rise / fall time constant
+def _parse_cli_args():
+    parser = argparse.ArgumentParser(
+        description="SMART/FEniCS cAMP dendritic spine simulation."
+    )
+    parser.add_argument("--mode", choices=["continuous", "single_pulse", "pulse_train"],
+                        default="continuous")
+    parser.add_argument("--t_end", type=float, default=None)
+    parser.add_argument("--dt", type=float, default=None)
+    parser.add_argument("--stim_amp", type=float, default=1.0)
+    parser.add_argument("--stim_start", type=float, default=1.0)
+    parser.add_argument("--pulse_width", type=float, default=0.5)
+    parser.add_argument("--pulse_period", type=float, default=0.5)
+    parser.add_argument("--pulse_count", type=int, default=5)
+    parser.add_argument("--D_cAMP", type=float, default=30.0)
+    parser.add_argument("--V_PDE", type=float, default=2.0)
+    parser.add_argument("--save_every", type=int, default=1)
+    parser.add_argument("--output_dir", default="results_full")
+    parser.add_argument("--publication", action="store_true",
+                        help="Use longer, smaller-dt settings for publication figures.")
+    return parser.parse_args()
+
+
+CLI_ARGS = _parse_cli_args()
+FINAL_T = CLI_ARGS.t_end if CLI_ARGS.t_end is not None else (10.0 if CLI_ARGS.publication else 2.0)
+INITIAL_DT = CLI_ARGS.dt if CLI_ARGS.dt is not None else (0.02 if CLI_ARGS.publication else 0.1)
+STIM_ON = CLI_ARGS.stim_start
+STIM_OFF = STIM_ON + CLI_ARGS.pulse_width
+STIM_TAU = 0.3    # retained for backwards-compatible reporting only
 
 # Operator-split stimulus parameters (Python-side, not SMART parameters)
 K_GS_BASAL      = 0.002  # /s  — basal Gs activation rate
@@ -103,16 +127,31 @@ print("Comprehensive cAMP Spine Model — Realistic Signaling Edition")
 print("=" * 70)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STIMULATION PROTOCOL  (smooth tanh pulse, range [0, 1])
+# STIMULATION PROTOCOL  (square wave, scaled by --stim_amp)
 # ═══════════════════════════════════════════════════════════════════════════════
 def stim(t):
     """
-    Return stimulus level in [0, 1] at time t.
-    Smooth rise and fall via paired tanh functions.
+    Return square-wave stimulus level at time t.
+
+    continuous:   on from stim_start through t_end
+    single_pulse: one pulse window [stim_start, stim_start + pulse_width)
+    pulse_train:  pulse_count windows separated by pulse_period
     """
-    rise = 0.5 * (1.0 + np.tanh((t - STIM_ON)  / STIM_TAU))
-    fall = 0.5 * (1.0 + np.tanh((STIM_OFF - t) / STIM_TAU))
-    return float(np.clip(rise * fall, 0.0, 1.0))
+    if t < CLI_ARGS.stim_start:
+        return 0.0
+    if CLI_ARGS.mode == "continuous":
+        return float(CLI_ARGS.stim_amp)
+    if CLI_ARGS.mode == "single_pulse":
+        active = CLI_ARGS.stim_start <= t < CLI_ARGS.stim_start + CLI_ARGS.pulse_width
+        return float(CLI_ARGS.stim_amp if active else 0.0)
+
+    elapsed = t - CLI_ARGS.stim_start
+    if elapsed < 0.0 or CLI_ARGS.pulse_period <= 0.0:
+        return 0.0
+    pulse_idx = int(elapsed // CLI_ARGS.pulse_period)
+    in_train = pulse_idx < CLI_ARGS.pulse_count
+    in_width = (elapsed - pulse_idx * CLI_ARGS.pulse_period) < CLI_ARGS.pulse_width
+    return float(CLI_ARGS.stim_amp if in_train and in_width else 0.0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -196,8 +235,8 @@ cc.add(compartment_list)
 print("Defining species ...")
 
 # ── Second messengers ─────────────────────────────────────────────────────────
-# D_cAMP = 30 μm²/s: effective in cytosol accounting for PKA-R and PDE buffering
-cAMP         = Species("cAMP",         0.1,    uM,  30.0, D_unit, "Cyto")
+# D_cAMP default = 30 μm²/s: effective in cytosol accounting for PKA-R and PDE buffering
+cAMP         = Species("cAMP",         0.1,    uM,  CLI_ARGS.D_cAMP, D_unit, "Cyto")
 Ca           = Species("Ca",           0.1,    uM, 220.0, D_unit, "Cyto")
 
 # ── Nucleotides ───────────────────────────────────────────────────────────────
@@ -287,7 +326,7 @@ AC_Ca_fold   = Parameter("AC_Ca_fold",   5.0,    uM/uM)     # dimensionless fold
 SA_V         = Parameter("SA_V",         6.0,    1/um)
 
 # ── PDE4 — cytosolic (Bhattacharyya 2006) ────────────────────────────────────
-V_PDE4       = Parameter("V_PDE4",       2.0,    uM/sec)
+V_PDE4       = Parameter("V_PDE4",       CLI_ARGS.V_PDE,    uM/sec)
 K_PDE4       = Parameter("K_PDE4",       1.3,    uM)
 alpha_inh    = Parameter("alpha_inh",    0.3,    1/uM)      # PKA→PDE4 inhibition
 
@@ -829,7 +868,7 @@ model_cur.initialize()
 # ═══════════════════════════════════════════════════════════════════════════════
 # OUTPUT FILES
 # ═══════════════════════════════════════════════════════════════════════════════
-result_folder = pathlib.Path("results_full")
+result_folder = pathlib.Path(CLI_ARGS.output_dir)
 result_folder.mkdir(exist_ok=True)
 
 xdmf_out_species = ["cAMP", "Ca", "Ca_ER", "ATP", "AMP", "pSer845", "pSer831"]
@@ -936,8 +975,9 @@ while True:
     model_cur.monolithic_solve()
 
     # ── Write spatial XDMF output ──────────────────────────────────────────
-    for sname, xf in xdmf_files.items():
-        xf.write(model_cur.sc[sname].u["u"], model_cur.t)
+    if step % max(CLI_ARGS.save_every, 1) == 0:
+        for sname, xf in xdmf_files.items():
+            xf.write(model_cur.sc[sname].u["u"], model_cur.t)
 
     # ── Accumulate time series ─────────────────────────────────────────────
     tvec.append(model_cur.t)
@@ -957,7 +997,7 @@ while True:
 
     # ── Progress report every 10 steps ─────────────────────────────────────
     if step % 10 == 0:
-        stim_lbl = "STIM" if STIM_ON <= model_cur.t < STIM_OFF else "basal"
+        stim_lbl = "STIM" if stim(model_cur.t) > 0.0 else "basal"
         print(
             f"  t={model_cur.t:7.3f}s [{stim_lbl:5s}]"
             f"  cAMP={avg_cAMP_vec[-1]:.4f} μM"
