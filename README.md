@@ -246,6 +246,84 @@ python camp_realistic_model.py \
 
 ---
 
+## ICBES Experiment Pipeline
+
+This pipeline runs the full SMART/FEniCS model repeatedly, stores each run in a unique folder, computes paper-ready summary metrics, generates figures, and renders cAMP spatial output videos. Run these commands from the repository root.
+
+Install helper dependencies outside the SMART Docker/FEniCS environment:
+
+```bash
+pip install -r requirements.txt
+```
+
+Quick prototype experiments:
+
+```bash
+python experiments/run_experiments.py --t_end 0.5 --dt 0.1 --save_every 1
+```
+
+For a one-run smoke test:
+
+```bash
+python experiments/run_experiments.py --max_runs 1 --t_end 0.2 --dt 0.1 --save_every 1
+```
+
+Publication-quality experiments:
+
+```bash
+python experiments/run_experiments.py --publication --save_every 5
+```
+
+The runner writes one folder per simulation under `results/experiments/` and records run metadata in `results/experiments/manifest.csv`. The experiment groups are:
+
+- **A:** continuous baseline
+- **B:** `single_pulse` with `pulse_width` values 0.1, 0.25, 0.5 s
+- **C:** `pulse_train` with `pulse_period` values 0.25, 0.5, 1.0 s
+- **D:** `D_cAMP` sweep with values 5, 10, 20, 30, 50 um^2/s
+- **E:** `V_PDE` sweep with values 1, 2, 5, 10 uM/s
+
+Analysis:
+
+```bash
+python analysis/compute_metrics.py
+```
+
+This reads each `results/experiments/*/timeseries.csv` file and writes `results/summary_metrics.csv` with peak/final cAMP, time to peak, fold change, PKA activation, GluA1 phosphorylation, final CaMKII activation, and cAMP area under the curve.
+
+Figure generation:
+
+```bash
+python analysis/plot_results.py
+```
+
+Figures are written to `figures/`:
+
+- `continuous_vs_pulsed_camp.png`
+- `pulse_width_response.png`
+- `pulse_period_response.png`
+- `diffusion_sweep.png`
+- `pde_sweep.png`
+- `downstream_phosphorylation.png`
+
+Video rendering:
+
+```bash
+python visualization/make_video_pyvista.py results/experiments/A_continuous_baseline/cAMP.xdmf --output figures/continuous_camp.mp4
+```
+
+Use explicit color limits to keep comparisons visually consistent:
+
+```bash
+python visualization/make_video_pyvista.py results/experiments/C_pulse_train_period_0.5s/cAMP.xdmf \
+  --output figures/pulse_train_camp.gif \
+  --clim 0,1.5 \
+  --fps 12
+```
+
+The renderer uses a fixed camera, fixed scalar range, the inferno colormap, and a scalar bar labeled `cAMP concentration (uM)`.
+
+---
+
 ## Parameter Sources
 
 Parameters were drawn from or calibrated against the following literature:
