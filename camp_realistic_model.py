@@ -119,6 +119,7 @@ K_GS_MAX        = 0.50   # /s  — peak Gs activation during stimulus
 GS_TOTAL_VAL    = 1.0    # μM  — total Gs pool (conservation)
 CA_STIM_RATE    = 0.45   # μM/s — stimulus Ca²⁺ influx (NMDAR / VGCC)
 CAMP_DEND_VAL   = 0.02   # μM  — dendritic [cAMP] at neck
+BAR_TOTAL_VAL   = 0.3    # μM  — agonist-accessible β-AR pool (operator split)
 k_bAR_on_val    = 2.0    # /s  — agonist-driven receptor activation (operator split)
 
 NECK_MARKER = 20
@@ -286,7 +287,7 @@ pSer831      = Species("pSer831",       0.0,   uM,   0.01, D_unit, "Cyto")
 I1P          = Species("I1P",           0.0,   uM,  15.0, D_unit, "Cyto")
 
 # ── β-adrenergic receptor states (PM; very slow lateral diffusion) ─────────────
-bAR_active   = Species("bAR_active",   0.3,   uM,   0.005, D_unit, "PM")   # agonist-bound
+bAR_active   = Species("bAR_active",   BAR_TOTAL_VAL, uM, 0.005, D_unit, "PM") # agonist-bound
 bAR_desens   = Species("bAR_desens",   0.0,   uM,   0.005, D_unit, "PM")   # GRK-phosphorylated
 
 # ── ER Ca²⁺ ───────────────────────────────────────────────────────────────────
@@ -315,7 +316,6 @@ print("Setting parameters ...")
 
 # ── Gs / GTPase ───────────────────────────────────────────────────────────────
 k_Gs_inact   = Parameter("k_Gs_inact",   0.3,    1/sec)     # intrinsic GTPase + RGS
-Gs_total_p   = Parameter("Gs_total_p",   1.0,    uM)        # total Gs pool
 
 # ── Adenylyl cyclase (AC1/AC8) ────────────────────────────────────────────────
 V_AC_max     = Parameter("V_AC_max",     2.0,    uM*um/sec) # max surface flux
@@ -393,8 +393,6 @@ k_I1_dephos = Parameter("k_I1_dephos", 0.1,  1/sec)                # PP2A (const
 K_I1        = Parameter("K_I1",        0.1,  uM)                   # IC₅₀ I1P→PP1
 
 # ── β-AR receptor desensitization ────────────────────────────────────────────
-bAR_total_p  = Parameter("bAR_total_p",  0.3,   uM)     # total receptor pool
-k_bAR_on     = Parameter("k_bAR_on",     2.0,   1/sec)  # agonist activation (also used in op-split)
 k_GRK        = Parameter("k_GRK",        0.5,   1/sec)  # GRK → β-arrestin → desensitization
 k_recycle    = Parameter("k_recycle",    0.01,  1/sec)  # endosome recycling → resensitization
 
@@ -402,7 +400,6 @@ k_recycle    = Parameter("k_recycle",    0.01,  1/sec)  # endosome recycling →
 V_SERCA      = Parameter("V_SERCA",      5.0,   uM/sec)  # SERCA max rate
 K_SERCA      = Parameter("K_SERCA",      0.3,   uM)      # Km for cytosolic Ca²⁺ (Hill n=2)
 k_ER_leak    = Parameter("k_ER_leak",    0.01,  1/sec)   # passive ER → cytosol Ca²⁺ leak
-ER_fraction  = Parameter("ER_fraction",  0.1,   uM/uM)  # ER volume fraction (calibration)
 
 # ── Nucleotide cycle ──────────────────────────────────────────────────────────
 k_AdK_f      = Parameter("k_AdK_f",      0.1,    1/(uM*sec)) # AdK forward
@@ -420,7 +417,7 @@ cAMP_dend_p  = Parameter("cAMP_dend_p",  CAMP_DEND_VAL, uM)
 
 pc = ParameterContainer()
 pc.add([
-    k_Gs_inact, Gs_total_p,
+    k_Gs_inact,
     V_AC_max, K_AC_ATP, K_AC_Gs, K_AC_CaM, AC_Ca_fold,
     SA_V,
     V_PDE4, K_PDE4, alpha_inh,
@@ -435,8 +432,8 @@ pc.add([
     pSer845_total_p, k_phos, k_dephos,
     pSer831_total_p, k_pSer831_phos, k_pSer831_dephos,
     k_I1_phos, I1_total_p, k_I1_dephos, K_I1,
-    bAR_total_p, k_bAR_on, k_GRK, k_recycle,
-    V_SERCA, K_SERCA, k_ER_leak, ER_fraction,
+    k_GRK, k_recycle,
+    V_SERCA, K_SERCA, k_ER_leak,
     k_AdK_f, k_AdK_r, V_ATP_use, V_ATP_regen,
     V_AMPD, K_AMPD,
     k_neck, cAMP_dend_p,
@@ -986,8 +983,8 @@ head_neck_ratio_vec = [camp_metrics0["head_neck_ratio"]]
 
 def apply_bar_stimulus(model_obj, t_now):
     """
-    Drive bAR_active toward its agonist-bound level (0.3 μM) during stimulus.
-    Rate = stim(t) · k_bAR_on_val · max(0.3 − bAR_active, 0)
+    Drive bAR_active toward its agonist-bound level during stimulus.
+    Rate = stim(t) · k_bAR_on_val · max(BAR_TOTAL_VAL − bAR_active, 0)
     SMART handles GRK desensitization (r_bAR_desens) and recycling (r_bAR_recycle).
     """
     s = stim(t_now)
@@ -997,7 +994,7 @@ def apply_bar_stimulus(model_obj, t_now):
     vals    = vec.get_local()
     bar_des = model_obj.sc["bAR_desens"].u["u"].vector().get_local()
     total   = vals + bar_des
-    delta   = s * k_bAR_on_val * np.maximum(0.3 - vals, 0.0) * INITIAL_DT
+    delta   = s * k_bAR_on_val * np.maximum(BAR_TOTAL_VAL - vals, 0.0) * INITIAL_DT
     vec.set_local(np.clip(vals + delta, 0.0, total))
     vec.apply("insert")
 
@@ -1013,7 +1010,7 @@ def apply_gs_stimulus(model_obj, t_now):
     s       = stim(t_now)
     bar_vec = model_obj.sc["bAR_active"].u["u"].vector().get_local()
     bar_avg = float(bar_vec.mean())
-    k_act   = K_GS_BASAL + s * (K_GS_MAX - K_GS_BASAL) * (bar_avg / 0.3)
+    k_act   = K_GS_BASAL + s * (K_GS_MAX - K_GS_BASAL) * (bar_avg / BAR_TOTAL_VAL)
     vec     = model_obj.sc["Gs_act"].u["u"].vector()
     vals    = vec.get_local()
     delta   = k_act * np.maximum(GS_TOTAL_VAL - vals, 0.0) * INITIAL_DT
