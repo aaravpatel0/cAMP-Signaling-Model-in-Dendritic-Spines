@@ -1,13 +1,4 @@
 # Large binary result files — never commit these
-*.h5
-*.xdmf
-
-# Result and output folders
-results/
-results_fast/
-results_full/
-mesh_output/
-figures/
 paraview_output/
 
 # Python cache

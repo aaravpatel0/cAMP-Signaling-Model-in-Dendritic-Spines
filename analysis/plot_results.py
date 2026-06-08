@@ -40,8 +40,28 @@ def mark_no_data(ax: plt.Axes) -> None:
     ax.text(0.5, 0.5, "No matching runs", ha="center", va="center", transform=ax.transAxes)
 
 
+def first_existing_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    for column in candidates:
+        if column in df.columns:
+            return column
+    return None
+
+
+def normalize_output_path(path_value: object) -> Path:
+    path = Path(str(path_value))
+    if path.exists() or path.is_absolute():
+        return path
+    normalized = Path(str(path_value).replace("\\", "/"))
+    if normalized.exists():
+        return normalized
+    return path
+
+
 def read_timecourse(row: pd.Series) -> pd.DataFrame:
-    return pd.read_csv(Path(row["timeseries_csv"]))
+    path_column = first_existing_column(row.to_frame().T, ["timeseries_csv", "timecourse_csv"])
+    if path_column is None:
+        return pd.DataFrame()
+    return pd.read_csv(normalize_output_path(row[path_column]))
 
 
 def plot_continuous_vs_pulsed(summary: pd.DataFrame, figures_dir: Path) -> None:
@@ -57,7 +77,10 @@ def plot_continuous_vs_pulsed(summary: pd.DataFrame, figures_dir: Path) -> None:
             continue
         row = match.iloc[0]
         ts = read_timecourse(row)
-        ax.plot(ts["t"], ts["avg_cAMP"], linewidth=2, label=run_id.replace("_", " "))
+        y_column = first_existing_column(ts, ["avg_cAMP", "mean_cAMP"])
+        if "t" not in ts.columns or y_column is None:
+            continue
+        ax.plot(ts["t"], ts[y_column], linewidth=2, label=run_id.replace("_", " "))
     style_axes(ax, "Time (s)", "Average cAMP (uM)")
     if ax.lines:
         ax.legend(frameon=False)
@@ -69,10 +92,16 @@ def plot_continuous_vs_pulsed(summary: pd.DataFrame, figures_dir: Path) -> None:
 
 
 def plot_response(summary: pd.DataFrame, group: str, x_column: str, y_column: str, xlabel: str, filename: str, figures_dir: Path) -> None:
+    y_column = first_existing_column(summary, [y_column, y_column.replace("peak_avg_", "peak_"), "peak_cAMP"])
+    group_aliases = {
+        "D_D_cAMP_sweep": ["D_D_cAMP_sweep", "D_diffusion_sweep"],
+        "E_V_PDE_sweep": ["E_V_PDE_sweep", "E_pde_sweep"],
+    }
+    groups = group_aliases.get(group, [group])
     if x_column not in summary.columns or y_column not in summary.columns:
         rows = pd.DataFrame()
     else:
-        rows = summary[summary["group"] == group].sort_values(x_column)
+        rows = summary[summary["group"].isin(groups)].sort_values(x_column)
         rows = rows.dropna(subset=[x_column, y_column])
         rows[x_column] = pd.to_numeric(rows[x_column], errors="coerce")
         rows[y_column] = pd.to_numeric(rows[y_column], errors="coerce")
@@ -133,9 +162,10 @@ def plot_spatial_timecourse(summary: pd.DataFrame, column: str, ylabel: str, fil
         if match.empty:
             continue
         ts = read_timecourse(match.iloc[0])
-        if column not in ts.columns:
+        column_to_plot = first_existing_column(ts, [column])
+        if "t" not in ts.columns or column_to_plot is None:
             continue
-        ax.plot(ts["t"], ts[column], linewidth=2, label=run_id.replace("_", " "))
+        ax.plot(ts["t"], ts[column_to_plot], linewidth=2, label=run_id.replace("_", " "))
     style_axes(ax, "Time (s)", ylabel)
     if ax.lines:
         ax.legend(frameon=False)

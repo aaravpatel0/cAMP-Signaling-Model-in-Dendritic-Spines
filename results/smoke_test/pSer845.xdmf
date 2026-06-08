@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
+<Xdmf Version="3.0" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <Domain>
+    <Grid Name="TimeSeries_Cyto_15_pSer845_u" GridType="Collection" CollectionType="Temporal">
+      <Grid Name="mesh" GridType="Uniform">
+        <Topology NumberOfElements="48096" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="48096 4" NumberType="UInt" Format="HDF">pSer845.h5:/Mesh/0/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="11562 3" Format="HDF">pSer845.h5:/Mesh/0/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="0.000000000000000e+00" />
+        <Attribute Name="Cyto_15_pSer845_u" AttributeType="Scalar" Center="Node">
+          <DataItem Dimensions="11562 1" Format="HDF">pSer845.h5:/VisualisationVector/0</DataItem>
+        </Attribute>
+      </Grid>
+      <Grid Name="mesh" GridType="Uniform">
+        <Topology NumberOfElements="48096" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="48096 4" NumberType="UInt" Format="HDF">pSer845.h5:/Mesh/1/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="11562 3" Format="HDF">pSer845.h5:/Mesh/1/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="1.000000000000000e-01" />
+        <Attribute Name="Cyto_15_pSer845_u" AttributeType="Scalar" Center="Node">
+          <DataItem Dimensions="11562 1" Format="HDF">pSer845.h5:/VisualisationVector/1</DataItem>
+        </Attribute>
+      </Grid>
+      <Grid Name="mesh" GridType="Uniform">
+        <Topology NumberOfElements="48096" TopologyType="Tetrahedron" NodesPerElement="4">
+          <DataItem Dimensions="48096 4" NumberType="UInt" Format="HDF">pSer845.h5:/Mesh/2/mesh/topology</DataItem>
+        </Topology>
+        <Geometry GeometryType="XYZ">
+          <DataItem Dimensions="11562 3" Format="HDF">pSer845.h5:/Mesh/2/mesh/geometry</DataItem>
+        </Geometry>
+        <Time Value="2.000000000000000e-01" />
+        <Attribute Name="Cyto_15_pSer845_u" AttributeType="Scalar" Center="Node">
+          <DataItem Dimensions="11562 1" Format="HDF">pSer845.h5:/VisualisationVector/2</DataItem>
+        </Attribute>
+      </Grid>
+    </Grid>
+  </Domain>
+</Xdmf>
