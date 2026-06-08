@@ -80,7 +80,12 @@ def plot_continuous_vs_pulsed(summary: pd.DataFrame, figures_dir: Path) -> None:
         y_column = first_existing_column(ts, ["avg_cAMP", "mean_cAMP"])
         if "t" not in ts.columns or y_column is None:
             continue
-        ax.plot(ts["t"], ts[y_column], linewidth=2, label=run_id.replace("_", " "))
+        ax.plot(
+            ts["t"].to_numpy(),
+            ts[y_column].to_numpy(),
+            linewidth=2,
+            label=run_id.replace("_", " "),
+        )
     style_axes(ax, "Time (s)", "Average cAMP (uM)")
     if ax.lines:
         ax.legend(frameon=False)
@@ -98,7 +103,7 @@ def plot_response(summary: pd.DataFrame, group: str, x_column: str, y_column: st
         "E_V_PDE_sweep": ["E_V_PDE_sweep", "E_pde_sweep"],
     }
     groups = group_aliases.get(group, [group])
-    if x_column not in summary.columns or y_column not in summary.columns:
+    if y_column is None or x_column not in summary.columns or y_column not in summary.columns:
         rows = pd.DataFrame()
     else:
         rows = summary[summary["group"].isin(groups)].sort_values(x_column)
@@ -110,8 +115,15 @@ def plot_response(summary: pd.DataFrame, group: str, x_column: str, y_column: st
     if rows.empty:
         mark_no_data(ax)
     else:
-        ax.plot(rows[x_column], rows[y_column], marker="o", linewidth=2, color="#2a6f97")
-    style_axes(ax, xlabel, y_column.replace("_", " "))
+        ax.plot(
+            rows[x_column].to_numpy(),
+            rows[y_column].to_numpy(),
+            marker="o",
+            linewidth=2,
+            color="#2a6f97",
+        )
+    ylabel = y_column.replace("_", " ") if y_column is not None else "response"
+    style_axes(ax, xlabel, ylabel)
     fig.tight_layout()
     fig.savefig(figures_dir / filename)
     plt.close(fig)
@@ -135,12 +147,30 @@ def plot_downstream(summary: pd.DataFrame, figures_dir: Path) -> None:
     if rows.empty:
         mark_no_data(ax)
     else:
-        labels = rows["run_id"].str.replace("_", " ", regex=False)
+        labels = rows["run_id"].str.replace("_", " ", regex=False).to_numpy()
         x = range(len(rows))
         width = 0.25
-        ax.bar([i - width for i in x], rows["peak_avg_pSer845"], width=width, label="pSer845", color="#8f2d56")
-        ax.bar(x, rows["peak_avg_pSer831"], width=width, label="pSer831", color="#386641")
-        ax.bar([i + width for i in x], rows["peak_PKA_frac"], width=width, label="PKA frac", color="#2a6f97")
+        ax.bar(
+            [i - width for i in x],
+            rows["peak_avg_pSer845"].to_numpy(),
+            width=width,
+            label="pSer845",
+            color="#8f2d56",
+        )
+        ax.bar(
+            list(x),
+            rows["peak_avg_pSer831"].to_numpy(),
+            width=width,
+            label="pSer831",
+            color="#386641",
+        )
+        ax.bar(
+            [i + width for i in x],
+            rows["peak_PKA_frac"].to_numpy(),
+            width=width,
+            label="PKA frac",
+            color="#2a6f97",
+        )
         ax.set_xticks(list(x))
         ax.set_xticklabels(labels, rotation=35, ha="right")
         ax.legend(frameon=False, ncol=3)
@@ -165,7 +195,12 @@ def plot_spatial_timecourse(summary: pd.DataFrame, column: str, ylabel: str, fil
         column_to_plot = first_existing_column(ts, [column])
         if "t" not in ts.columns or column_to_plot is None:
             continue
-        ax.plot(ts["t"], ts[column_to_plot], linewidth=2, label=run_id.replace("_", " "))
+        ax.plot(
+            ts["t"].to_numpy(),
+            ts[column_to_plot].to_numpy(),
+            linewidth=2,
+            label=run_id.replace("_", " "),
+        )
     style_axes(ax, "Time (s)", ylabel)
     if ax.lines:
         ax.legend(frameon=False)

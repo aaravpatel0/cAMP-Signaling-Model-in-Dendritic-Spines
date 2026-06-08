@@ -15,30 +15,6 @@
           <DataItem Dimensions="11562 1" Format="HDF">AMP.h5:/VisualisationVector/0</DataItem>
         </Attribute>
       </Grid>
-      <Grid Name="mesh" GridType="Uniform">
-        <Topology NumberOfElements="48096" TopologyType="Tetrahedron" NodesPerElement="4">
-          <DataItem Dimensions="48096 4" NumberType="UInt" Format="HDF">AMP.h5:/Mesh/1/mesh/topology</DataItem>
-        </Topology>
-        <Geometry GeometryType="XYZ">
-          <DataItem Dimensions="11562 3" Format="HDF">AMP.h5:/Mesh/1/mesh/geometry</DataItem>
-        </Geometry>
-        <Time Value="1.000000000000000e-01" />
-        <Attribute Name="Cyto_4_AMP_u" AttributeType="Scalar" Center="Node">
-          <DataItem Dimensions="11562 1" Format="HDF">AMP.h5:/VisualisationVector/1</DataItem>
-        </Attribute>
-      </Grid>
-      <Grid Name="mesh" GridType="Uniform">
-        <Topology NumberOfElements="48096" TopologyType="Tetrahedron" NodesPerElement="4">
-          <DataItem Dimensions="48096 4" NumberType="UInt" Format="HDF">AMP.h5:/Mesh/2/mesh/topology</DataItem>
-        </Topology>
-        <Geometry GeometryType="XYZ">
-          <DataItem Dimensions="11562 3" Format="HDF">AMP.h5:/Mesh/2/mesh/geometry</DataItem>
-        </Geometry>
-        <Time Value="2.000000000000000e-01" />
-        <Attribute Name="Cyto_4_AMP_u" AttributeType="Scalar" Center="Node">
-          <DataItem Dimensions="11562 1" Format="HDF">AMP.h5:/VisualisationVector/2</DataItem>
-        </Attribute>
-      </Grid>
     </Grid>
   </Domain>
 </Xdmf>
