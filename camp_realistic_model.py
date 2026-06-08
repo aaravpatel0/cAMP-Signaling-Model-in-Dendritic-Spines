@@ -343,12 +343,12 @@ V_PDE4_AKAP  = Parameter("V_PDE4_AKAP",  0.5,    uM*um/sec)
 K_PDE4_AKAP  = Parameter("K_PDE4_AKAP",  1.3,    uM)
 
 # ── PKA (Bhalla 1999) ─────────────────────────────────────────────────────────
-k_PKA_act    = Parameter("k_PKA_act",    50.0,   uM/sec)    # max activation flux
+k_PKA_act    = Parameter("k_PKA_act",    50.0,   1/sec)     # max first-order activation rate
 K_PKA_cAMP   = Parameter("K_PKA_cAMP",   0.3,    uM)        # EC₅₀ cAMP (Hill n=2)
 k_PKA_inact  = Parameter("k_PKA_inact",  20.0,   1/sec)     # reassociation rate
 
 # ── Epac (Saucerman 2006) ─────────────────────────────────────────────────────
-k_Epac_on    = Parameter("k_Epac_on",    5.0,    uM/sec)
+k_Epac_on    = Parameter("k_Epac_on",    5.0,    1/sec)
 Epac_total   = Parameter("Epac_total",   0.2,    uM)
 K_Epac       = Parameter("K_Epac",       2.0,    uM)        # EC₅₀ cAMP, Hill n=2
 k_Epac_off   = Parameter("k_Epac_off",   1.0,    1/sec)
@@ -377,12 +377,12 @@ k_dephos_CaMKII = Parameter("k_dephos_CaMKII",   0.01, 1/sec)      # PP1 dephosp
 
 # ── GluA1 Ser845 (PKA site) ───────────────────────────────────────────────────
 pSer845_total_p = Parameter("pSer845_total_p", 1.0,  uM)
-k_phos          = Parameter("k_phos",           0.5,  1/(uM*sec))
+k_phos          = Parameter("k_phos",           0.5,  um/(uM*sec))
 k_dephos        = Parameter("k_dephos",         0.05, 1/sec)       # PP1 (I1P-inhibited)
 
 # ── GluA1 Ser831 (CaMKII site) ────────────────────────────────────────────────
 pSer831_total_p = Parameter("pSer831_total_p", 1.0,  uM)
-k_pSer831_phos  = Parameter("k_pSer831_phos",  0.3,  1/(uM*sec))
+k_pSer831_phos  = Parameter("k_pSer831_phos",  0.3,  um/(uM*sec))
 k_pSer831_dephos= Parameter("k_pSer831_dephos",0.02, 1/sec)        # PP1 (I1P-inhibited)
 
 # ── PP1 / Inhibitor-1 feedback loop (Bhalla & Iyengar 1999) ──────────────────

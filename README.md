@@ -360,6 +360,44 @@ Validation:
 python scripts/validate_outputs.py results/experiments/A_continuous_baseline/timeseries.csv
 ```
 
+## Testing the Repository
+
+Run the full repository check from Windows PowerShell:
+
+```powershell
+.\test_everything.ps1
+```
+
+or directly:
+
+```bash
+python scripts/test_everything.py
+```
+
+This test first checks required files and Python imports, then runs the fast Windows-compatible conference pipeline:
+
+```bash
+python run_conference_experiments.py
+```
+
+That fast path should work on normal Python with NumPy, pandas, and Matplotlib. It writes the aggregate table at `results/summary_metrics.csv` and creates figures in `figures/`.
+
+The full SMART/FEniCS model requires a Linux, Docker, Conda, or HPC environment with FEniCS `dolfin` and SMART installed. On Windows, missing `dolfin` is expected; the repository test reports this as a warning and skips the full model rather than treating it as a code failure. In a SMART/FEniCS environment, run:
+
+```bash
+./test_everything.sh
+```
+
+The full-model smoke test runs `camp_realistic_model.py` into `results/smoke_test/` and validates `results/smoke_test/timeseries.csv` with:
+
+```bash
+python scripts/validate_outputs.py results/smoke_test/timeseries.csv
+```
+
+Do not pass `results/summary_metrics.csv` into `scripts/validate_outputs.py`. That validator is for a single full-model `timeseries.csv`; `summary_metrics.csv` is an aggregate experiment table and is checked separately by `scripts/test_everything.py`.
+
+After the full model runs, open the cAMP field in ParaView by choosing `File > Open`, selecting `results/smoke_test/cAMP.xdmf`, clicking `Apply`, and using the time controls to inspect the simulated cAMP field.
+
 ---
 
 ## Parameter Sources
