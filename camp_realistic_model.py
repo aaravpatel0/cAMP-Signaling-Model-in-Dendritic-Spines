@@ -140,6 +140,7 @@ def stim(t):
     single_pulse: one pulse window [stim_start, stim_start + pulse_width)
     pulse_train:  pulse_count windows separated by pulse_period
     """
+    t = float(t)
     if t < CLI_ARGS.stim_start:
         return 0.0
     if CLI_ARGS.mode == "continuous":
@@ -193,10 +194,13 @@ for facet in d.facets(spine_mesh):
             mf2[facet.index()] = PSD_MARKER
             marked_psd += 1
 
-print(f"  Auto-marked {marked_neck} neck facets  (marker {NECK_MARKER})")
-print(f"  Auto-marked {marked_psd}  PSD facets   (marker {PSD_MARKER})")
-has_neck = marked_neck > 0
-has_psd  = marked_psd  > 0
+marked_neck_global = int(d.MPI.sum(d.MPI.comm_world, marked_neck))
+marked_psd_global = int(d.MPI.sum(d.MPI.comm_world, marked_psd))
+
+print(f"  Auto-marked {marked_neck_global} neck facets  (marker {NECK_MARKER})")
+print(f"  Auto-marked {marked_psd_global}  PSD facets   (marker {PSD_MARKER})")
+has_neck = marked_neck_global > 0
+has_psd  = marked_psd_global  > 0
 if not has_neck:
     print("  WARNING: no neck facets found — neck exchange reactions skipped.")
 if not has_psd:
@@ -909,9 +913,22 @@ def _camp_dof_coordinates_and_masks():
     """
     try:
         u = model_cur.sc["cAMP"].u["u"]
-        coords_local = u.function_space().tabulate_dof_coordinates()
-        coords_local = np.asarray(coords_local).reshape((-1, spine_mesh.geometry().dim()))
         n_values = len(u.vector().get_local())
+
+        # SMART exposes species as subfunctions of a mixed space. Some FEniCS
+        # builds cannot tabulate coordinates for those subspaces directly, but
+        # CG1 scalar species in this model have one value per parent-mesh vertex.
+        parent_coords = np.asarray(spine_mesh.coordinates())
+        if len(parent_coords) == n_values:
+            coords_local = parent_coords
+        else:
+            V = u.function_space()
+            try:
+                coords_local = V.tabulate_dof_coordinates()
+            except RuntimeError:
+                coords_local = V.collapse().tabulate_dof_coordinates()
+            coords_local = np.asarray(coords_local).reshape((-1, spine_mesh.geometry().dim()))
+
         if len(coords_local) != n_values:
             raise ValueError("DOF coordinate count does not match local vector length")
         z_dof = coords_local[:, 2]
